@@ -1,0 +1,392 @@
+---
+title: "Indonesian Districst Getis Filtering"
+output: html_notebook
+---
+#### Spatial filtering by Getis 
+
+# Data, data description & plots
+
+```{r setup}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(spdep) # install.packages("spdep")
+library(tidyverse)
+library(summarytools)
+library(xtable)
+library(knitr)
+library(ExPanDaR)
+library(plotly)
+library(REAT)
+library(hdrcde)
+library(pdfCluster)
+library(readxl)
+library(statip)
+options(prompt="R> ", digits=3, scipen=999)
+```
+
+
+```{r}
+
+library(readr)
+dist <- read_csv("01-raw-data/Indonesia 514 Districs_New/District_new.csv")
+# ps2009 <- read_csv("https://raw.githubusercontent.com/carlos-seminar/e2019project/master/Spatial%20filtering/data/Indonesia 514 Districs_New/District_new.csv")
+#https://raw.githubusercontent.com/carlos-seminar/e2019project/master/Spatial%20filtering/data/Indonesia%20514%20Districs_New/District_new.csv?token=AGHR426CIYMQAYJ23CBXHNC5QG364
+
+#View(dist)
+```
+
+
+#     Distance based neighbors - minimum  neighbor distance threshold: 338 km
+
+
+# Step 1 Prepare spatial objects for subsequent analysis:
+
+```{r}
+dist
+
+dist<- dist %>% 
+  mutate(log.GDPPC00=log(RGDPPC2000)) %>% 
+   mutate(log.GDPPC01=log(RGDPPC2001)) %>%
+   mutate(log.GDPPC02=log(RGDPPC2002)) %>%
+ mutate(log.GDPPC05=log(RGDPPC2005)) %>% 
+mutate(log.GDPPC09=log(RGDPPC2009)) %>% 
+  mutate(log.GDPPC13=log(RGDPPC2013)) %>% 
+   mutate(log.GDPPC15=log(RGDPPC2015)) %>%
+   mutate(log.GDPPC16=log(RGDPPC2016)) %>%
+  mutate(log.GDPPC17=log(RGDPPC2017))
+
+dist
+```
+
+#minimum distance is 338 for the dnearneigh fuction
+
+```{r}
+# (a) coordinates and IDs
+coords <- dist[,c("X", "Y")]
+coords <- coordinates(coords)
+IDs <- dist$KDJ
+# (b) identify neighbors given the distance threshold
+nb338km <- dnearneigh(coords, d1=0, d2=338, longlat=T, row.names = IDs)
+summary(nb338km)
+# (c) calculate the spatial weights matrix
+W.matrix <- nb2listw(nb338km)
+summary(W.matrix)
+
+#nb2listw(nb338km) #, zero.policy = TRUE)
+#W.matrix <- nb2listw(nb338km,zero.policy = TRUE)
+#summary(W.matrix)
+```
+
+
+
+# Step 2 Spatial filtering
+
+# Getis filtering can be applied for 
+# positively autocorrelated data with natural origin:
+
+
+```{r}
+
+moran.test(dist$RGDPPC2000,W.matrix)
+moran.test(dist$RGDPPC2005,W.matrix)
+moran.test(dist$RGDPPC2009,W.matrix)
+moran.test(dist$RGDPPC2013,W.matrix)
+moran.test(dist$RGDPPC2017,W.matrix)
+
+```
+
+
+# Testinf the Getis G
+```{r}
+?localG
+localG(dist$RGDPPC2017, W.matrix)
+```
+
+# For spatial filtering, we need
+# - return_internals = TRUE 
+#   .. G(i) and E(G) are used in filtering
+# - GeoDa=FALSE = T 
+#   .. exclude "self-neighborhood" - use G(i) not G*(i)
+# - filtering is usually calculated based on connectivity matrix (C, not W)
+#   .. see syntax below
+
+
+```{r}
+a<- localG(dist$RGDPPC2017, nb2listw(nb338km, style="B"), return_internals = T, GeoDa = T)
+#a
+a[1]
+#attributes(a)
+b<-attributes(a)$internals
+#b
+```
+
+# Spatial filter for GDPpc years 00,01,01, 05, 09, 13, 15, 16 and 17 performed at distance 338 km
+
+```{r}
+U.Ftr00 <- localG(dist$RGDPPC2000, nb2listw(nb338km, style="B"), return_internals = T, GeoDa = T)
+Getis.m00 <- as.data.frame(attr(U.Ftr00, which = "internals")) # retrieve "internals"
+dist$RGDPPC00_ddot <- dist$RGDPPC2000 * (Getis.m00$EG/Getis.m00$G ) # "multiplicative filter"
+```
+
+```{r}
+U.Ftr01 <- localG(dist$RGDPPC2001, nb2listw(nb338km, style="B"), return_internals = T, GeoDa = T)
+Getis.m01 <- as.data.frame(attr(U.Ftr01, which = "internals")) # retrieve "internals"
+dist$RGDPPC01_ddot <- dist$RGDPPC2001 * (Getis.m01$EG/Getis.m01$G ) # "multiplicative filter"
+```
+
+```{r}
+U.Ftr02 <- localG(dist$RGDPPC2002, nb2listw(nb338km, style="B"), return_internals = T, GeoDa = T)
+Getis.m02 <- as.data.frame(attr(U.Ftr02, which = "internals")) # retrieve "internals"
+dist$RGDPPC02_ddot <- dist$RGDPPC2002 * (Getis.m02$EG/Getis.m02$G ) # "multiplicative filter"
+```
+
+
+```{r}
+U.Ftr05 <- localG(dist$RGDPPC2005, nb2listw(nb338km, style="B"), return_internals = T, GeoDa = T)
+Getis.m05 <- as.data.frame(attr(U.Ftr05, which = "internals")) # retrieve "internals"
+dist$RGDPPC05_ddot <- dist$RGDPPC2005 * (Getis.m05$EG/Getis.m05$G ) # "multiplicative filter"
+```
+
+
+```{r}
+U.Ftr09 <- localG(dist$RGDPPC2009, nb2listw(nb338km, style="B"), return_internals = T, GeoDa = T)
+Getis.m09 <- as.data.frame(attr(U.Ftr09, which = "internals")) # retrieve "internals"
+dist$RGDPPC09_ddot <- dist$RGDPPC2009 * (Getis.m09$EG/Getis.m09$G ) # "multiplicative filter"
+```
+
+
+```{r}
+U.Ftr13 <- localG(dist$RGDPPC2013, nb2listw(nb338km, style="B"), return_internals = T, GeoDa = T)
+Getis.m13 <- as.data.frame(attr(U.Ftr13, which = "internals")) # retrieve "internals"
+dist$RGDPPC13_ddot <- dist$RGDPPC2013 * (Getis.m13$EG/Getis.m13$G ) # "multiplicative filter"
+```
+
+
+
+```{r}
+U.Ftr15 <- localG(dist$RGDPPC2015, nb2listw(nb338km, style="B"), return_internals = T, GeoDa = T)
+Getis.m15 <- as.data.frame(attr(U.Ftr15, which = "internals")) # retrieve "internals"
+dist$RGDPPC15_ddot <- dist$RGDPPC2015 * (Getis.m15$EG/Getis.m15$G ) # "multiplicative filter"
+```
+
+
+```{r}
+U.Ftr16 <- localG(dist$RGDPPC2016, nb2listw(nb338km, style="B"), return_internals = T, GeoDa = T)
+Getis.m16 <- as.data.frame(attr(U.Ftr16, which = "internals")) # retrieve "internals"
+dist$RGDPPC16_ddot <- dist$RGDPPC2016 * (Getis.m16$EG/Getis.m16$G ) # "multiplicative filter"
+```
+
+
+```{r}
+U.Ftr17 <- localG(dist$RGDPPC2017, nb2listw(nb338km, style="B"), return_internals = T, GeoDa = T)
+Getis.m17 <- as.data.frame(attr(U.Ftr17, which = "internals")) # retrieve "internals"
+dist$RGDPPC17_ddot <- dist$RGDPPC2017 * (Getis.m17$EG/Getis.m17$G ) # "multiplicative filter"
+```
+
+
+
+#saving the filtered data in a new file
+
+```{r}
+dist
+```
+
+
+```{r}
+dist
+out<-dist %>% 
+  select(1:4, 45,46,47, 50, 54, 58, 60,61,62, 68:85)
+out
+write.csv(out, "01-raw-data/output_spatial_fitlering/2017filt.csv")
+
+```
+
+
+# Evaluation of robustness of delta (338 km) when the distances changes
+
+
+# We crearte an "empty" data.frame to collect estimation results at different
+# max. neighbor distance thresholds
+
+```{r}
+s2.df <- data.frame( V1=0, GDP.Ftr= 0)
+s2.df
+
+```
+
+
+# Main calculation: neighbors & W.matrices are calculated for
+# distance thresholds from 339 km to 839 km (-km iterations).
+# Model data are stored into the "s2.df" data.frame
+
+# .. calculation may take a few moments
+
+#create a data frame of the same type as the one created by the PPA program
+# please be aware that the code is much longer and complicated than needed but it was better to use what i have done in the past to study the output of the PPA  program
+
+
+```{r}
+for(jj in 1:100) {
+  
+  nb <- dnearneigh(coords, d1=0, d2=328+ 10*jj, longlat=T, row.names = IDs)
+  # Spatial filter for log.GDPPCPCXX or for RGDPPC20XX
+  GDP.Ftr <- localG(dist$RGDPPC2009, nb2listw(nb, style="B"), return_internals = T, GeoDa = T)
+  
+  
+  
+  #the output is created so that it resembles the output of the PPA program
+   aj <- cbind(dist$KDJ, GDP.Ftr) 
+   aj<- as.data.frame(aj)
+   n= c(NA, NA)
+   m= c(jj, NA)
+  nm<-  data.frame( n,m )
+  names(nm)[1] <- "V1"
+names(nm)[2] <- "GDP.Ftr"
+  aj <- rbind( nm, aj)
+  s2.df<- rbind(s2.df, aj)
+  
+} 
+s2.df <- s2.df[-1,]
+#
+head(s2.df)
+tail(s2.df)
+#
+```
+
+```{r}
+s2.df
+```
+
+
+## what follows is the same as the R program I created for evaluating delta for the output file of the PPA program
+
+```{r}
+locg<- s2.df%>% 
+  select(1,2)
+```
+
+```{r}
+locg
+names(locg)[1] <- "point"
+names(locg)[2] <- "getis"
+locg
+```
+
+
+in the following code insert the number of points (regions, 514 districs) and the number of different  distances used for calculating the local  Gi  statistic (100 as written int he for loop on line 228 of this code "for(jj in 1:100) {"...)
+```{r}
+nump=514
+numd=100
+
+rows= (nump+2)*numd
+rows
+```
+
+As you can see this data is very messy, there are two many rows we need two add a new coloumn (r) which refers to the distance used for calulating Gi.
+
+note: just the absolute value of Gi is needed
+
+```{r}
+r<- c(1:rows)
+
+for (n in seq_along(r)) {
+  for (j in 1:numd){
+if ((nump+2)*(j-1)< n & n<= (nump+2)*j ) {
+  r[n]=328+ 10*j
+}
+} 
+}
+
+df <- data.frame(cbind(locg, r))
+
+df<- df %>% 
+  select(point,getis,r) %>% 
+  filter(!is.na(point)) %>%
+  mutate(getis= sqrt(getis*getis)) #just the absolute value of Gi is needed
+
+df
+
+```
+now having the new column r is possible to spread the dataset so that each observations is the getis statictic each distance is a row and each column represents each point
+
+```{r}
+df <- df %>% 
+  select(point,getis,r) %>% 
+spread (point,getis) 
+
+df
+```
+
+ the distance delta is the distance for which the statistic Gi starts to decrease in absolute value
+
+```{r}
+df
+dfmat<- as.matrix(df)
+
+dif= matrix(data=1000, nrow = numd-1, ncol = nump+1)
+
+for (i in 1:(numd-10)) {
+  for (j in 1:(nump+1)) {
+    if ( dfmat[i+1,j]-dfmat[i,j]< -0.01  & dfmat[i+2,j]-dfmat[i,j]< -0.01 & dfmat[i+3,j]-dfmat[i,j] < -0.01 & dfmat[i+4,j]-dfmat[i,j] < -0.01 ) {
+    dif[i,j]<- dfmat[i,1]
+    }
+     }
+}
+#deleted this line in the if condition  && dfmat[i+2,j]-dfmat[i+1,j] < -0.1
+#&& dfmat[i+2,j]-dfmat[i+1,j] <= 0
+difframe<-as.data.frame(dif)
+ 
+difframe
+
+```
+
+the cells with values equal to 1000 do not have any meaning the other cells represent the distances for which the statistic  decreases in absolute value.
+
+for each column there may be many distances for which the statitic decreases in value. Just the first of such values is needed.
+
+the critic value of lambda is at the end of the code (the mode of the distances distribution)
+
+```{r}
+mind<- c(1:nump)
+
+
+for (i in seq_along(mind)) {
+ mind[i]= min(dplyr::pull(difframe, i+1)) #Just the first of such values is needed 
+}
+
+point<- c(1:nump)
+hist2<- data.frame(cbind(point, mind))
+#hist2
+
+p<- hist2 %>% 
+  filter(mind<1000) %>% 
+ggplot()+
+geom_histogram(mapping = aes(x = mind), binwidth = 10)
+
+p
+
+library(plotly)
+ggplotly(p)
+
+hist2 %>% 
+  filter(mind<1000) %>% 
+  summarise(mean= mean(mind), median=median(mind), mode=mfv(mind))
+  
+
+
+```
+
+#delta is the mode = 338 km
+
+
+END
+
+```{r}
+sessionInfo()
+```
+
+
+
+
+
+
+
