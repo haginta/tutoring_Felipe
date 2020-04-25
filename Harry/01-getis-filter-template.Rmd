@@ -23,15 +23,13 @@ library(statip)
 options(prompt="R> ", digits=3, scipen=999)
 ```
 
+```{r}
+library(sf)
+```
+
 
 ```{r}
-
-library(readr)
-dist <- read_csv("01-raw-data/Indonesia 514 Districs_New/District_new.csv")
-# ps2009 <- read_csv("https://raw.githubusercontent.com/carlos-seminar/e2019project/master/Spatial%20filtering/data/Indonesia 514 Districs_New/District_new.csv")
-#https://raw.githubusercontent.com/carlos-seminar/e2019project/master/Spatial%20filtering/data/Indonesia%20514%20Districs_New/District_new.csv?token=AGHR426CIYMQAYJ23CBXHNC5QG364
-
-#View(dist)
+cpi <- st_read("Shape file CPI/82 cpi foodstuffs point.shp")
 ```
 
 
@@ -41,34 +39,37 @@ dist <- read_csv("01-raw-data/Indonesia 514 Districs_New/District_new.csv")
 # Step 1 Prepare spatial objects for subsequent analysis:
 
 ```{r}
-dist
-
-dist<- dist %>% 
-  mutate(log.GDPPC00=log(RGDPPC2000)) %>% 
-   mutate(log.GDPPC01=log(RGDPPC2001)) %>%
-   mutate(log.GDPPC02=log(RGDPPC2002)) %>%
- mutate(log.GDPPC05=log(RGDPPC2005)) %>% 
-mutate(log.GDPPC09=log(RGDPPC2009)) %>% 
-  mutate(log.GDPPC13=log(RGDPPC2013)) %>% 
-   mutate(log.GDPPC15=log(RGDPPC2015)) %>%
-   mutate(log.GDPPC16=log(RGDPPC2016)) %>%
-  mutate(log.GDPPC17=log(RGDPPC2017))
-
-dist
+plot(cpi)
 ```
+
+```{r}
+class(cpi)
+```
+
+```{r}
+head(cpi)
+tail(cpi)
+```
+
 
 #minimum distance is 338 for the dnearneigh fuction
 
 ```{r}
+#cpi.df <- as.data.frame(cpi)
+```
+
+
+
+```{r}
 # (a) coordinates and IDs
-coords <- dist[,c("X", "Y")]
-coords <- coordinates(coords)
-IDs <- dist$KDJ
+#coords <- cpi[,c("X", "Y")]
+#coords <- coordinates(coords)
+IDs <- cpi$id
 # (b) identify neighbors given the distance threshold
-nb338km <- dnearneigh(coords, d1=0, d2=338, longlat=T, row.names = IDs)
-summary(nb338km)
+nb672km <- dnearneigh(cpi, d1=0, d2=672, row.names = IDs)
+summary(nb672km)
 # (c) calculate the spatial weights matrix
-W.matrix <- nb2listw(nb338km)
+W.matrix <- nb2listw(nb672km)
 summary(W.matrix)
 
 #nb2listw(nb338km) #, zero.policy = TRUE)
@@ -76,6 +77,10 @@ summary(W.matrix)
 #summary(W.matrix)
 ```
 
+```{r}
+cpi <- cpi %>% 
+  mutate(avg = (X2016m10+X2016m11+X2016m12+X2017m1+X2017m2+X2017m3)/6)
+```
 
 
 # Step 2 Spatial filtering
@@ -86,11 +91,17 @@ summary(W.matrix)
 
 ```{r}
 
-moran.test(dist$RGDPPC2000,W.matrix)
-moran.test(dist$RGDPPC2005,W.matrix)
-moran.test(dist$RGDPPC2009,W.matrix)
-moran.test(dist$RGDPPC2013,W.matrix)
-moran.test(dist$RGDPPC2017,W.matrix)
+#moran.test(cpi$X2014m1,W.matrix)
+#moran.test(cpi$X2015m1,W.matrix)
+#moran.test(cpi$X2016m1,W.matrix)
+#moran.test(cpi$X2017m1,W.matrix)
+#moran.test(cpi$X2018m1,W.matrix)
+#moran.test(cpi$X2019m1,W.matrix)
+
+moran.test(cpi$X2016m10,W.matrix)
+moran.test(cpi$X2016m12,W.matrix)
+moran.test(cpi$X2017m2,W.matrix)
+moran.test(cpi$avg,W.matrix)
 
 ```
 
