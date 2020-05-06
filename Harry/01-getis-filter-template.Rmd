@@ -30,6 +30,7 @@ library(sf)
 
 ```{r}
 cpi <- st_read("Shape file CPI/82 cpi foodstuffs point.shp")
+#cpi <- st_read("Shape file CPI/82 cpi general.shp")
 ```
 
 
@@ -54,17 +55,18 @@ tail(cpi)
 
 #minimum distance is 338 for the dnearneigh fuction
 
+#convert cpi spatial object to data.frame
 ```{r}
-#cpi.df <- as.data.frame(cpi)
+cpi.df <- as.data.frame(cpi)
 ```
 
 
-
+#create weight matrix and name W.matrix
 ```{r}
 # (a) coordinates and IDs
 #coords <- cpi[,c("X", "Y")]
 #coords <- coordinates(coords)
-IDs <- cpi$id
+IDs <- cpi$IDCity
 # (b) identify neighbors given the distance threshold
 nb672km <- dnearneigh(cpi, d1=0, d2=672, row.names = IDs)
 summary(nb672km)
@@ -77,9 +79,25 @@ summary(W.matrix)
 #summary(W.matrix)
 ```
 
+#weight matrix k nearest
+```{r}
+# (a) coordinates and IDs
+#coords <- cpi[,c("X", "Y")]
+#coords <- coordinates(coords)
+IDs <- cpi$IDCity
+# (b) identify neighbors given the distance threshold
+nearneigh4 <- knearneigh(cpi, k=4)
+summary(nearneigh4)
+# (c) calculate the spatial weights matrix
+W.matrix <- nb2listw(knn2nb(nearneigh4))
+summary(W.matrix)
+```
+
+
+#checking the average of Moran's I
 ```{r}
 cpi <- cpi %>% 
-  mutate(avg = (X2016m10+X2016m11+X2016m12+X2017m1+X2017m2+X2017m3)/6)
+  mutate(avg = (mo2016m10+mo2016m11+mo2016m12+mo2017m1+mo2017m2+mo2017m3)/6)
 ```
 
 
@@ -88,9 +106,8 @@ cpi <- cpi %>%
 # Getis filtering can be applied for 
 # positively autocorrelated data with natural origin:
 
-
+#compute Moran's I for each observation
 ```{r}
-
 #moran.test(cpi$X2014m1,W.matrix)
 #moran.test(cpi$X2015m1,W.matrix)
 #moran.test(cpi$X2016m1,W.matrix)
@@ -98,18 +115,69 @@ cpi <- cpi %>%
 #moran.test(cpi$X2018m1,W.matrix)
 #moran.test(cpi$X2019m1,W.matrix)
 
-moran.test(cpi$X2016m10,W.matrix)
-moran.test(cpi$X2016m12,W.matrix)
-moran.test(cpi$X2017m2,W.matrix)
+moran.test(cpi$mo2016m10,W.matrix)
+moran.test(cpi$mo2016m12,W.matrix)
+moran.test(cpi$mo2017m2,W.matrix)
 moran.test(cpi$avg,W.matrix)
 
 ```
+```{r}
+names=c()
+names <- colnames(cpi.df)
+Moran.s_I=data.frame(var="a",moran=0, p.value=0)
+for (i in 11:82) {
+    MOR<- moran.test(cpi.df[,i],W.matrix)
+  lab= (round(MOR$estimate[1],3))
+  pvalue = MOR$p.value
+a=data.frame(var=names[i],moran=lab, p.value=pvalue)
+Moran.s_I<-rbind(Moran.s_I,a)
+}
+Moran.s_I<-Moran.s_I[-1,]
+tail(Moran.s_I)
+```
+
+```{r}
+Moran.s_I
+```
+```{r}
+filter(Moran.s_I,p.value < 0.1)
+```
 
 
-# Testinf the Getis G
+```{r}
+mor <- moran.test(cpi.df[,156],W.matrix)
+```
+
+```{r}
+mor$p.value
+```
+
+```{r}
+cpi.df 
+```
+
+
+```{r}
+cpi[,11]
+```
+
+
+
+# Testing the Getis G
+
+```{r}
+# (b) identify neighbors given the distance threshold
+nb672km <- dnearneigh(cpi, d1=0, d2=672, row.names = IDs)
+summary(nb672km)
+# (c) calculate the spatial weights matrix
+W.matrix <- nb2listw(nb672km)
+summary(W.matrix)
+```
+
 ```{r}
 ?localG
-localG(dist$RGDPPC2017, W.matrix)
+localG(cpi.df$mo2014m6, W.matrix)
+localG(cpi.df$mo2014m6, nb2listw(nb, style="B"), return_internals = T, GeoDa = T)
 ```
 
 # For spatial filtering, we need
@@ -219,7 +287,7 @@ write.csv(out, "01-raw-data/output_spatial_fitlering/2017filt.csv")
 # max. neighbor distance thresholds
 
 ```{r}
-s2.df <- data.frame( V1=0, GDP.Ftr= 0)
+s2.df <- data.frame( V1=0, cpigetis= 0)
 s2.df
 
 ```
@@ -236,22 +304,22 @@ s2.df
 
 
 ```{r}
-for(jj in 1:100) {
-  
-  nb <- dnearneigh(coords, d1=0, d2=328+ 10*jj, longlat=T, row.names = IDs)
+for(jj in 1:10) {
+  nb <- dnearneigh(cpi, d1=0, d2=672+ 10*jj, longlat=T, row.names = IDs)
   # Spatial filter for log.GDPPCPCXX or for RGDPPC20XX
-  GDP.Ftr <- localG(dist$RGDPPC2009, nb2listw(nb, style="B"), return_internals = T, GeoDa = T)
+  cpigetis <- localG(cpi.df$mo2019m1, nb2listw(nb, style="B"), return_internals = T, GeoDa = T)
   
   
   
   #the output is created so that it resembles the output of the PPA program
-   aj <- cbind(dist$KDJ, GDP.Ftr) 
+   aj <- cbind(cpi.df$IDCity, cpigetis ) 
    aj<- as.data.frame(aj)
+   aj
    n= c(NA, NA)
    m= c(jj, NA)
   nm<-  data.frame( n,m )
   names(nm)[1] <- "V1"
-names(nm)[2] <- "GDP.Ftr"
+names(nm)[2] <- "cpigetis"
   aj <- rbind( nm, aj)
   s2.df<- rbind(s2.df, aj)
   
